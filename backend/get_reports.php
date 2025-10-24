@@ -1,7 +1,14 @@
 <?php
 // Ensure this is the absolute first line of the file.
 header('Content-Type: application/json');
-header("Access-Control-Allow-Origin: *");
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 $host = 'localhost';
 $db = 'users'; // Your database name
@@ -14,7 +21,7 @@ if ($conn->connect_error) {
     exit;
 }
 
-$username = trim($_GET['username'] ?? '');
+$username = strtolower(trim($_GET['username'] ?? ''));
 
 if (!$username) {
     echo json_encode(['error' => 'Username is required']);
@@ -22,7 +29,12 @@ if (!$username) {
 }
 
 // Selects all required columns from the 'reports' table.
-$sql = "SELECT id, title, description, DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at FROM reports WHERE username = ?";
+// Match username case-insensitively and ignore stray spaces in DB values
+$sql = "SELECT id, title, description,
+               DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
+        FROM reports
+        WHERE LOWER(TRIM(username)) = ?
+        ORDER BY created_at DESC, id DESC";
 $stmt = $conn->prepare($sql);
 
 if (!$stmt) {
@@ -31,14 +43,35 @@ if (!$stmt) {
 }
 
 $stmt->bind_param("s", $username);
-$stmt->execute();
+if (!$stmt->execute()) {
+    echo json_encode(['error' => 'SQL execute failed: ' . $stmt->error]);
+    exit;
+}
+
 $result = $stmt->get_result();
 
 $reports = [];
-while ($row = $result->fetch_assoc()) {
-    $reports[] = $row;
+if ($result instanceof mysqli_result) {
+    while ($row = $result->fetch_assoc()) {
+        $reports[] = $row;
+    }
+} else {
+    // Fallback if mysqlnd is not available (get_result returns null/false)
+    $stmt->store_result();
+    $stmt->bind_result($id, $title, $description, $createdAt);
+    while ($stmt->fetch()) {
+        $reports[] = [
+            'id' => $id,
+            'title' => $title,
+            'description' => $description,
+            'created_at' => $createdAt,
+        ];
+    }
 }
 
 echo json_encode(['reports' => $reports]);
+
+$stmt->close();
+$conn->close();
 
 // DO NOT put the closing tag ?>
