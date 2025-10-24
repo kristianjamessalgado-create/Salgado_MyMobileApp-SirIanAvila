@@ -25,8 +25,8 @@ const MyReports: React.FC = () => {
             return;
         }
 
-        // CRUCIAL: Force username to lowercase to guarantee a match with the database
-        const normalizedUser = storedUser.toLowerCase(); 
+        // Normalize username for backend (trim + lowercase)
+        const normalizedUser = storedUser.trim().toLowerCase(); 
         
         console.log('Fetching reports for username:', normalizedUser);
         fetchReports(normalizedUser);
@@ -35,9 +35,10 @@ const MyReports: React.FC = () => {
     const fetchReports = async (user: string) => {
         try {
             setLoading(true);
-            const url = `http://localhost/Salgado_MyMobileApp/Salgado_MyMobileApp/backend/get_reports.php?username=${encodeURIComponent(user)}`;
+            const base = 'http://localhost/Salgado_MyMobileApp/Salgado_MyMobileApp/backend/get_reports.php';
+            const url = `${base}?username=${encodeURIComponent(user)}`;
             
-            const res = await fetch(url);
+            const res = await fetch(url, { method: 'GET' });
             
             if (!res.ok) {
                 throw new Error(`HTTP Error! Status: ${res.status}.`);
