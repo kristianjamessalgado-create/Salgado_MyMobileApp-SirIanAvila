@@ -3,10 +3,34 @@
 header('Content-Type: application/json');
 header("Access-Control-Allow-Origin: *");
 
+// Force JSON-only error handling (avoid HTML error pages)
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+ini_set('html_errors', '0');
+set_error_handler(function ($severity, $message, $file, $line) {
+    http_response_code(500);
+    echo json_encode([
+        'error' => 'Server error',
+        'message' => $message,
+    ]);
+    exit;
+});
+set_exception_handler(function ($e) {
+    http_response_code(500);
+    echo json_encode([
+        'error' => 'Server exception',
+        'message' => $e->getMessage(),
+    ]);
+    exit;
+});
+
 $host = 'localhost';
 $db = 'reports'; // New dedicated database for reports
 $user = 'root';
 $pass = '';
+
+// Throw exceptions on MySQLi errors
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) {
@@ -48,6 +72,6 @@ while ($row = $result->fetch_assoc()) {
     $reports[] = $row;
 }
 
-echo json_encode(['reports' => $reports]);
+echo json_encode(['reports' => $reports], JSON_UNESCAPED_UNICODE);
 
 // DO NOT put the closing tag ?>

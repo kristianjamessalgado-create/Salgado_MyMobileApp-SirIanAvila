@@ -47,14 +47,23 @@ const MyReports: React.FC = () => {
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 12000);
-            const res = await fetch(url, { signal: controller.signal });
+            const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
             clearTimeout(timeoutId);
             
             if (!res.ok) {
                 throw new Error(`HTTP Error! Status: ${res.status}.`);
             }
             
-            const data = await res.json();
+            const raw = await res.text();
+            let data: any = null;
+            try {
+                data = raw ? JSON.parse(raw) : {};
+            } catch (parseErr) {
+                console.warn('Non-JSON response from server:', raw?.slice(0, 300));
+                setReports([]);
+                setError('Server did not return valid JSON. Check server logs and PHP errors.');
+                return;
+            }
             console.log('Fetched reports:', data);
 
             if (Array.isArray(data.reports)) {
