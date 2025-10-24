@@ -2,6 +2,14 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { FiFileText } from 'react-icons/fi';
+import { Platform } from 'react-native';
+
+// Base URL with Android emulator support; override via EXPO_PUBLIC_API_BASE_URL if set
+const DEFAULT_BASE = 'http://localhost/Salgado_MyMobileApp/Salgado_MyMobileApp/backend';
+const ANDROID_BASE = 'http://10.0.2.2/Salgado_MyMobileApp/Salgado_MyMobileApp/backend';
+const ENV_BASE =
+  (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_BASE_URL) || '';
+const API_BASE: string = (ENV_BASE as string) || (Platform.OS === 'android' ? ANDROID_BASE : DEFAULT_BASE);
 
 interface Report {
     id: number;
@@ -35,9 +43,12 @@ const MyReports: React.FC = () => {
     const fetchReports = async (user: string) => {
         try {
             setLoading(true);
-            const url = `http://localhost/Salgado_MyMobileApp/Salgado_MyMobileApp/backend/get_reports.php?username=${encodeURIComponent(user)}`;
-            
-            const res = await fetch(url);
+            const url = `${API_BASE}/get_reports.php?username=${encodeURIComponent(user)}`;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
             
             if (!res.ok) {
                 throw new Error(`HTTP Error! Status: ${res.status}.`);
@@ -46,7 +57,7 @@ const MyReports: React.FC = () => {
             const data = await res.json();
             console.log('Fetched reports:', data);
 
-            if (data.reports) {
+            if (Array.isArray(data.reports)) {
                 setReports(data.reports);
                 setError(null);
             } else if (data.error) {
@@ -58,7 +69,11 @@ const MyReports: React.FC = () => {
             }
         } catch (err: any) {
             console.error("Fetch failed:", err);
-            setError(`Failed to fetch reports: ${err.message || 'Network issue'}. Ensure XAMPP/WAMP is running and the URL is correct.`);
+            const isAbort = err?.name === 'AbortError';
+            setError(
+                `Failed to fetch reports: ${isAbort ? 'Request timed out' : err?.message || 'Network issue'}. ` +
+                'Ensure your server is running and the API base URL is reachable.'
+            );
         } finally {
             setLoading(false);
         }
